@@ -5,9 +5,11 @@ const core = require('@actions/core')
 const glob = require('@actions/glob')
 const config = require('./config')
 const { getFolderSize } = require('./util')
+const process = require('node:process');
 
 async function run() {
   await saveCaches()
+  process.exit(0)
 }
 
 async function saveCaches() {
@@ -79,9 +81,9 @@ async function saveCache(cacheConfig) {
       { followSymbolicLinks: false }
     )
     const key = `${config.baseCacheKey}-${cacheConfig.name}-${hash}`
-    console.log(`Attempting to save ${paths} cache to ${key}`)
+    core.debug(`Attempting to save ${paths} cache to ${key}`)
     await cache.saveCache(paths, key)
-    console.log('Successfully saved cache')
+    core.info('Successfully saved cache')
   } catch (error) {
     core.warning(error.stack)
   } finally {

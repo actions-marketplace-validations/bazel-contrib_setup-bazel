@@ -5,6 +5,7 @@ const core = require('@actions/core')
 const github = require('@actions/github')
 
 const bazeliskVersion = core.getInput('bazelisk-version')
+const cacheSave = core.getBooleanInput('cache-save')
 const cacheVersion = core.getInput('cache-version')
 const moduleRoot = core.getInput('module-root')
 
@@ -52,7 +53,10 @@ const diskCacheConfig = core.getInput('disk-cache')
 const diskCacheEnabled = diskCacheConfig !== 'false'
 let diskCacheName = 'disk'
 if (diskCacheEnabled) {
-  bazelrc.push(`common --disk_cache=${bazelDisk}`)
+  // Before Bazel 6.3, providing --disk_cache to common is an error,
+  // with Bazel 6.3 and onwards, common accepts any legal Bazel option
+  // https://github.com/bazelbuild/bazel/issues/3054
+  bazelrc.push(`build --disk_cache=${bazelDisk}`)
   if (diskCacheName !== 'true') {
     diskCacheName = `${diskCacheName}-${diskCacheConfig}`
   }
@@ -134,6 +138,7 @@ core.exportVariable('BAZELISK_GITHUB_TOKEN', token)
 
 module.exports = {
   baseCacheKey,
+  cacheSave,
   bazeliskCache: {
     enabled: core.getBooleanInput('bazelisk-cache'),
     files: [`${moduleRoot}/.bazelversion`],

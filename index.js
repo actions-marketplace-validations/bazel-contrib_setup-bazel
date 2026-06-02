@@ -1,11 +1,11 @@
-const fs = require('fs')
-const { setTimeout } = require('timers/promises')
-const core = require('@actions/core')
-const cache = require('@actions/cache')
-const github = require('@actions/github')
-const glob = require('@actions/glob')
-const tc = require('@actions/tool-cache')
-const config = require('./config')
+import fs from 'fs'
+import { setTimeout } from 'timers/promises'
+import * as core from '@actions/core'
+import * as cache from '@actions/cache'
+import * as github from '@actions/github'
+import * as glob from '@actions/glob'
+import * as tc from '@actions/tool-cache'
+import config from './config.js'
 
 async function run() {
   try {
@@ -155,19 +155,35 @@ async function restoreCache(cacheConfig) {
   await setTimeout(delay)
 
   core.startGroup(`Restore cache for ${cacheConfig.name}`)
+  const name = cacheConfig.name
   try {
     const hash = await glob.hashFiles(cacheConfig.files.join('\n'))
-    const name = cacheConfig.name
     const paths = cacheConfig.paths
     const restoreKey = `${config.baseCacheKey}-${name}-`
     const key = `${restoreKey}${hash}`
 
     core.debug(`Attempting to restore ${name} cache from ${key}`)
 
-    const restoredKey = await cache.restoreCache(
+    const restorePromise = cache.restoreCache(
       paths, key, [restoreKey],
-      { segmentTimeoutInMs: 300000 } // 5 minutes
+      { segmentTimeoutInMs: 300000 } // 5 minutes per download segment
     )
+
+    let restoredKey
+    if (config.cacheRestoreTimeoutMs > 0) {
+      const ac = new AbortController()
+      const timeoutPromise = setTimeout(config.cacheRestoreTimeoutMs, null, { signal: ac.signal })
+        .then(() => { throw new Error(`Timed out restoring ${name} cache after ${config.cacheRestoreTimeoutMs}ms`) })
+      timeoutPromise.catch(() => {})
+
+      try {
+        restoredKey = await Promise.race([restorePromise, timeoutPromise])
+      } finally {
+        ac.abort()
+      }
+    } else {
+      restoredKey = await restorePromise
+    }
 
     if (restoredKey) {
       core.info(`Successfully restored cache from ${restoredKey}`)
